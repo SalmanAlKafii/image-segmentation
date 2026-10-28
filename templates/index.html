@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="id" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VisionLab — Pengolahan Citra Digital</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      body {
+        font-family: "Plus Jakarta Sans", sans-serif;
+        background-color: #090d16;
+        color: #f1f5f9;
+      }
+      .glass {
+        background: rgba(30, 41, 59, 0.55);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .gradient-text {
+        background: linear-gradient(135deg, #38bdf8, #818cf8, #c084fc);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen pb-16 selection:bg-indigo-500 selection:text-white">
+    <!-- Navbar -->
+    <nav class="glass sticky top-0 z-50 px-6 py-4 mb-8">
+      <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+            <span class="text-xl font-bold text-white">M</span>
+          </div>
+          <div>
+            <h1 class="text-xl font-bold tracking-tight">Maman<span class="gradient-text">Lab</span></h1>
+            <p class="text-xs text-slate-400">Analisis Tekstur, Ekualisasi & Segmentasi Citra</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <button id="exportBtn" onclick="exportPDF()" class="hidden px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm font-medium transition flex items-center gap-2">
+            <span>📄</span> Export PDF Report
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-6">
+      <!-- Panel Kontrol & Upload -->
+      <div class="glass rounded-3xl p-6 md:p-8 mb-10 shadow-2xl">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+          <!-- Dropzone Gambar -->
+          <div class="lg:col-span-2">
+            <label
+              for="imageInput"
+              id="dropzone"
+              class="border-2 border-dashed border-slate-700 hover:border-indigo-400 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer transition bg-slate-900/40 hover:bg-slate-900/70 min-h-[200px] text-center"
+            >
+              <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="previewSelectedImage(event)" />
+              <div id="uploadPrompt">
+                <div class="w-14 h-14 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto mb-3 text-2xl">📂</div>
+                <p class="text-base font-semibold text-slate-200">Klik atau seret gambar ke sini</p>
+                <p class="text-xs text-slate-400 mt-1">Mendukung format PNG, JPG, JPEG, WEBP</p>
+              </div>
+              <div id="previewContainer" class="hidden flex items-center gap-4">
+                <img id="miniPreview" class="h-28 w-28 object-cover rounded-xl border border-slate-600 shadow-md" />
+                <div class="text-left">
+                  <p id="fileName" class="text-sm font-semibold text-indigo-300 truncate max-w-[220px]"></p>
+                  <p class="text-xs text-emerald-400 mt-1">✅ Siap diproses</p>
+                  <span class="inline-block mt-2 text-xs text-slate-400 underline">Ganti gambar</span>
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <!-- Pengaturan Parameter & Tombol Proses -->
+          <div class="flex flex-col justify-between space-y-6 bg-slate-900/60 p-6 rounded-2xl border border-slate-800">
+            <div>
+              <div class="flex justify-between text-sm mb-2">
+                <label class="text-slate-300 font-medium">Nilai Manual Threshold:</label>
+                <span id="threshLabel" class="font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">127</span>
+              </div>
+              <input type="range" id="thresholdSlider" min="0" max="255" value="127" class="w-full accent-indigo-500 cursor-pointer" oninput="document.getElementById('threshLabel').innerText = this.value" />
+              <div class="flex justify-between text-[11px] text-slate-500 mt-1">
+                <span>0 (Gelap)</span>
+                <span>Default: 127</span>
+                <span>255 (Terang)</span>
+              </div>
+            </div>
+
+            <button
+              onclick="processImage()"
+              id="processBtn"
+              class="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-semibold shadow-lg shadow-indigo-500/25 transition transform active:scale-95 flex justify-center items-center gap-2"
+            >
+              <span>⚙️</span> Proses & Visualisasikan
+            </button>
+            <p id="statusText" class="text-xs text-center text-slate-400"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Loading Spinner -->
+      <div id="loading" class="hidden py-20 text-center">
+        <div class="inline-block w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p class="text-slate-300 font-medium">Sedang mengekstrak tekstur & menghitung distribusi piksel...</p>
+      </div>
+
+      <!-- Area Hasil Pengolahan Citra -->
+      <div id="resultsArea" class="hidden space-y-8">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800 pb-4">
+          <div>
+            <h2 class="text-2xl font-bold">Dashboard Hasil Analisis Citra</h2>
+            <p class="text-sm text-slate-400">Perbandingan visual perubahan tekstur beserta grafik distribusi intensitas piksel (0–255)</p>
+          </div>
+          <div class="flex gap-3 text-xs">
+            <span class="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300"> Manual Thresh: <b id="infoManual">127</b> </span>
+            <span class="px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-300"> Otsu Optimal Thresh: <b id="infoOtsu">-</b> </span>
+          </div>
+        </div>
+
+        <!-- Grid Kartu Hasil -->
+        <div id="cardsGrid" class="grid grid-cols-1 gap-8"></div>
+      </div>
+    </main>
+
+    <script>
+      let charts = [];
+
+      function previewSelectedImage(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        document.getElementById("uploadPrompt").classList.add("hidden");
+        document.getElementById("previewContainer").classList.remove("hidden");
+        document.getElementById("fileName").innerText = file.name;
+        document.getElementById("miniPreview").src = URL.createObjectURL(file);
+      }
+
+      async function processImage() {
+        const fileInput = document.getElementById("imageInput");
+        if (!fileInput.files[0]) {
+          document.getElementById("statusText").innerHTML = '<span class="text-amber-400">⚠️ Silakan pilih gambar terlebih dahulu!</span>';
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("image", fileInput.files[0]);
+        formData.append("threshold", document.getElementById("thresholdSlider").value);
+
+        document.getElementById("loading").classList.remove("hidden");
+        document.getElementById("resultsArea").classList.add("hidden");
+        document.getElementById("statusText").innerText = "";
+
+        try {
+          const response = await fetch("/process", { method: "POST", body: formData });
+          const data = await response.json();
+
+          if (data.error) throw new Error(data.error);
+
+          renderResults(data);
+          document.getElementById("loading").classList.add("hidden");
+          document.getElementById("resultsArea").classList.remove("hidden");
+          document.getElementById("exportBtn").classList.remove("hidden");
+        } catch (err) {
+          document.getElementById("loading").classList.add("hidden");
+          document.getElementById("statusText").innerHTML = `<span class="text-rose-400">❌ Gagal: ${err.message}</span>`;
+        }
+      }
+
+      function renderResults(data) {
+        // Hapus chart lama jika ada
+        charts.forEach((c) => c.destroy());
+        charts = [];
+
+        document.getElementById("infoManual").innerText = data.manual_value;
+        document.getElementById("infoOtsu").innerText = data.otsu_value;
+
+        const items = [
+          {
+            id: "rgb",
+            title: "1. Citra Asli (RGB)",
+            badge: "Original Color",
+            desc: "Representasi warna asli dengan 3 kanal warna (Red, Green, Blue).",
+            img: data.images.original,
+            histType: "rgb",
+            histData: data.histograms.rgb,
+          },
+          {
+            id: "gray",
+            title: "2. Citra Grayscale",
+            badge: "Luminance",
+            desc: "Transformasi citra warna ke derajat keabuan (1 kanal intensitas 0–255).",
+            img: data.images.gray,
+            histType: "single",
+            histData: data.histograms.gray,
+            color: "#94a3b8",
+          },
+          {
+            id: "eq",
+            title: "3. Histogram Equalization",
+            badge: "Texture Enhancement",
+            desc: "Perataan distribusi piksel untuk memperjelas detail tekstur dan meningkatkan kontras lokal.",
+            img: data.images.equalized,
+            histType: "single",
+            histData: data.histograms.equalized,
+            color: "#22d3ee",
+          },
+          {
+            id: "manual",
+            title: `4. Manual Thresholding (T = ${data.manual_value})`,
+            badge: "Binary Segmentation",
+            desc: "Segmentasi biner dengan batas ambang statis pilihan pengguna.",
+            img: data.images.manual,
+            histType: "single",
+            histData: data.histograms.manual,
+            color: "#4ade80",
+          },
+          {
+            id: "otsu",
+            title: `5. Otsu Thresholding (Otomatis T = ${data.otsu_value})`,
+            badge: "Auto Segmentation",
+            desc: "Segmentasi biner adaptif yang meminimalkan varians dalam kelas secara otomatis.",
+            img: data.images.otsu,
+            histType: "single",
+            histData: data.histograms.otsu,
+            color: "#c084fc",
+          },
+          {
+            id: "comp",
+            title: "6. Perbandingan: Manual vs Otsu",
+            badge: "Side-by-Side Comparison",
+            desc: "Kiri: Manual Thresholding | Kanan: Otsu Thresholding.",
+            img: data.images.comparison,
+            histType: "compare",
+            histData: { manual: data.histograms.manual, otsu: data.histograms.otsu },
+          },
+        ];
+
+        const grid = document.getElementById("cardsGrid");
+        grid.innerHTML = "";
+
+        items.forEach((item) => {
+          const card = document.createElement("div");
+          card.className = "glass rounded-3xl p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center hover:border-slate-700 transition";
+          card.innerHTML = `
+                    <div class="lg:col-span-5 flex flex-col justify-between h-full space-y-4">
+                        <div>
+                            <span class="text-[11px] uppercase tracking-wider font-semibold px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${item.badge}</span>
+                            <h3 class="text-lg font-bold mt-2 text-white">${item.title}</h3>
+                            <p class="text-xs text-slate-400 mt-1">${item.desc}</p>
+                        </div>
+                        <div class="relative group overflow-hidden rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center min-h-[240px] max-h-[320px]">
+                            <img src="${item.img}" class="max-h-[300px] w-auto object-contain transition duration-300 group-hover:scale-105">
+                            <a href="${item.img}" download="${item.id}.png" class="opacity-0 group-hover:opacity-100 transition absolute bottom-3 right-3 bg-slate-900/90 hover:bg-indigo-600 text-white text-xs px-3 py-1.5 rounded-lg border border-slate-700">⬇️ Simpan Gambar</a>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-7 bg-slate-900/70 rounded-2xl p-4 border border-slate-800/80 h-[320px] flex flex-col">
+                        <span class="text-xs font-medium text-slate-400 mb-2">📊 Grafik Distribusi Histogram (Intensitas 0 - 255)</span>
+                        <div class="relative flex-1 w-full">
+                            <canvas id="chart-${item.id}"></canvas>
+                        </div>
+                    </div>
+                `;
+          grid.appendChild(card);
+
+          // Inisialisasi Chart.js
+          const ctx = document.getElementById(`chart-${item.id}`).getContext("2d");
+          const labels = Array.from({ length: 256 }, (_, i) => i);
+          let datasets = [];
+
+          if (item.histType === "rgb") {
+            datasets = [
+              { label: "Red", data: item.histData.r, borderColor: "#f87171", borderWidth: 1.5, pointRadius: 0, fill: false },
+              { label: "Green", data: item.histData.g, borderColor: "#4ade80", borderWidth: 1.5, pointRadius: 0, fill: false },
+              { label: "Blue", data: item.histData.b, borderColor: "#60a5fa", borderWidth: 1.5, pointRadius: 0, fill: false },
+            ];
+          } else if (item.histType === "compare") {
+            datasets = [
+              { label: "Manual Thresh", data: item.histData.manual, borderColor: "#4ade80", borderWidth: 2, pointRadius: 0 },
+              { label: "Otsu Thresh", data: item.histData.otsu, borderColor: "#c084fc", borderWidth: 2, pointRadius: 0 },
+            ];
+          } else {
+            datasets = [
+              {
+                label: "Jumlah Piksel",
+                data: item.histData,
+                borderColor: item.color,
+                backgroundColor: item.color + "22",
+                borderWidth: 1.8,
+                pointRadius: 0,
+                fill: true,
+              },
+            ];
+          }
+
+          const chart = new Chart(ctx, {
+            type: "line",
+            data: { labels, datasets },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: { mode: "index", intersect: false },
+              plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12, font: { size: 11 } } } },
+              scales: {
+                x: { ticks: { color: "#64748b", maxTicksLimit: 9 }, grid: { color: "rgba(255,255,255,0.04)" } },
+                y: { ticks: { color: "#64748b" }, grid: { color: "rgba(255,255,255,0.04)" } },
+              },
+            },
+          });
+          charts.push(chart);
+        });
+      }
+
+      function exportPDF() {
+        const element = document.getElementById("resultsArea");
+        const opt = {
+          margin: 0.3,
+          filename: "Laporan_Citra_Digital_VisionLab.pdf",
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, backgroundColor: "#090d16" },
+          jsPDF: { unit: "in", format: "a3", orientation: "portrait" },
+        };
+        html2pdf().set(opt).from(element).save();
+      }
+    </script>
+  </body>
+</html>
